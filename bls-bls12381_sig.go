@@ -23,7 +23,7 @@ func NewBLS_bls12(api frontend.API) (*BLS_bls12, error) {
 	}, nil
 }
 
-func (bls BLS_bls12) RotateWithPairing(pubKeys *[3]bls12.G1Affine, sig, hash *bls12.G2Affine, bitlist *[3]frontend.Variable, apk *bls12.G1Affine) {
+func (bls BLS_bls12) AWMUltraWithPairing(pubKeys *[3]bls12.G1Affine, sig, hash *bls12.G2Affine, bitlist *[3]frontend.Variable, apk *bls12.G1Affine) {
 	// canonical generator of the trace-zero r-torsion on BLS12-381
 	_, _, g1, _ := bls12381.Generators()
 	G1One := bls12.G1Affine{
@@ -52,7 +52,7 @@ func (bls BLS_bls12) RotateWithPairing(pubKeys *[3]bls12.G1Affine, sig, hash *bl
 	bls.pr.PairingCheck([]*bls12.G1Affine{&G1neg, &aggregated_pk}, []*bls12.G2Affine{sig, hash})
 }
 
-func (bls BLS_bls12) Rotate(pubKeys *[3]bls12.G1Affine, bitlist *[3]frontend.Variable, apk *bls12.G1Affine) {
+func (bls BLS_bls12) AWMUltra(pubKeys *[3]bls12.G1Affine, bitlist *[3]frontend.Variable, apk *bls12.G1Affine) {
 
 	_, _, g1, _ := bls12381.Generators()
 	G1One := bls12.G1Affine{

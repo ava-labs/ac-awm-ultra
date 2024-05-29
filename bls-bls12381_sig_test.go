@@ -23,7 +23,7 @@ import (
 const DOMAIN_SEPERATOR = "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_"
 
 // ----
-type SparkRotateWithPairing struct {
+type AWMUltraWithPairing struct {
 	PK  [3]bls12.G1Affine
 	Sig bls12.G2Affine
 	HM  bls12.G2Affine
@@ -31,32 +31,32 @@ type SparkRotateWithPairing struct {
 	APK bls12.G1Affine
 }
 
-func (c *SparkRotateWithPairing) Define(api frontend.API) error {
+func (c *AWMUltraWithPairing) Define(api frontend.API) error {
 	bls, err := NewBLS_bls12(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 
 	}
 
-	bls.RotateWithPairing(&c.PK, &c.Sig, &c.HM, &c.BL, &c.APK)
+	bls.AWMUltraWithPairing(&c.PK, &c.Sig, &c.HM, &c.BL, &c.APK)
 	return nil
 
 }
 
-type SparkRotate struct {
+type AWMUltra struct {
 	PK  [3]bls12.G1Affine
 	BL  [3]frontend.Variable
 	APK bls12.G1Affine
 }
 
-func (c *SparkRotate) Define(api frontend.API) error {
+func (c *AWMUltra) Define(api frontend.API) error {
 	bls, err := NewBLS_bls12(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 
 	}
 
-	bls.Rotate(&c.PK, &c.BL, &c.APK)
+	bls.AWMUltra(&c.PK, &c.BL, &c.APK)
 	return nil
 
 }
@@ -210,7 +210,7 @@ func TestRotateWithPairing(t *testing.T) {
 
 	var APK_bls12 = bls12.NewG1Affine(apk)
 
-	assignment := &SparkRotateWithPairing{
+	assignment := &AWMUltraWithPairing{
 		PK:  *PKS_bls12_parsed,
 		Sig: Sig_bls12,
 		HM:  bls12.NewG2Affine(HM),
@@ -218,15 +218,15 @@ func TestRotateWithPairing(t *testing.T) {
 		APK: APK_bls12,
 	}
 
-	err = test.IsSolved(&SparkRotateWithPairing{}, assignment, ecc.BN254.ScalarField())
+	err = test.IsSolved(&AWMUltraWithPairing{}, assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
 	fmt.Println("Rotate Circuit Proving Tests started")
-	// assert.ProverSucceeded(&SparkRotateWithPairing{}, assignment, test.WithCurves(ecc.BN254))
+	// assert.ProverSucceeded(&AWMUltraWithPairing{}, assignment, test.WithCurves(ecc.BN254))
 	fmt.Println("Starting R1CS generation...")
 	start := time.Now()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &SparkRotateWithPairing{})
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &AWMUltraWithPairing{})
 	if err != nil {
 		panic(err)
 	}
@@ -399,20 +399,20 @@ func TestRotate(t *testing.T) {
 
 	var APK_bls12 = bls12.NewG1Affine(apk)
 
-	assignment := &SparkRotate{
+	assignment := &AWMUltra{
 		PK:  *PKS_bls12_parsed,
 		BL:  bitlist_parsed,
 		APK: APK_bls12,
 	}
-	err = test.IsSolved(&SparkRotate{}, assignment, ecc.BN254.ScalarField())
+	err = test.IsSolved(&AWMUltra{}, assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
 	fmt.Println("Rotate Circuit Proving Tests started")
-	// assert.ProverSucceeded(&SparkRotateWithPairing{}, assignment, test.WithCurves(ecc.BN254))
+	// assert.ProverSucceeded(&AWMUltraWithPairing{}, assignment, test.WithCurves(ecc.BN254))
 	fmt.Println("Starting R1CS generation...")
 	start := time.Now()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &SparkRotate{})
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &AWMUltra{})
 	if err != nil {
 		panic(err)
 	}
@@ -543,7 +543,7 @@ func TestRotate(t *testing.T) {
 
 // bench
 func BenchmarkBLS2Verify_v1(b *testing.B) {
-	var c SparkRotateWithPairing
+	var c AWMUltraWithPairing
 	p := profile.Start()
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
 	p.Stop()
