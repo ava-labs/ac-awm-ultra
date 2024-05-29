@@ -23,12 +23,6 @@ func NewBLS_bls12(api frontend.API) (*BLS_bls12, error) {
 	}, nil
 }
 
-// Minimal-pubkey-size variant: public keys are points in G1, signatures are points in G2.
-//
-// N.B: Implementations using signature aggregation SHOULD use this approach, since
-// the size of (PK_1, ..., PK_n, signature) is dominated by the public keys
-// even for small n.
-// This variant is compatible with Ethereum PoS.
 func (bls BLS_bls12) RotateWithPairing(pubKeys *[3]bls12.G1Affine, sig, hash *bls12.G2Affine, bitlist *[3]frontend.Variable, apk *bls12.G1Affine) {
 	// canonical generator of the trace-zero r-torsion on BLS12-381
 	_, _, g1, _ := bls12381.Generators()
