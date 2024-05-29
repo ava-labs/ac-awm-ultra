@@ -96,6 +96,7 @@ func aggregatePubKeys(pubKeys []bls12381.G1Affine, bitlist []uint8) bls12381.G1A
 	var one big.Int
 	one.SetUint64(1)
 	res.ScalarMultiplicationBase(big.NewInt(0))
+	// fmt.Print("res: ", res)
 	for i := 0; i < len(bitlist); i++ {
 		if bitlist[i] == 1 {
 			res.Add(&res, &pubKeys[i])

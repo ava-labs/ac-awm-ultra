@@ -724,41 +724,8 @@ func (pr Pairing) DoublePairFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, error) {
 	return res, nil
 }
 
-func (pr Pairing) AddG1Points(p1, p2 *G1Affine) *G1Affine {
-	var infinity G1Affine
-	infinity.X = *pr.curveF.Zero()
-	infinity.Y = *pr.curveF.Zero()
-
-	for i := 0; i < 5; i++ {
-		if p1.X.Limbs[i] == infinity.X.Limbs[i] && p1.Y.Limbs[i] == infinity.Y.Limbs[i] {
-			return p2
-		}
-		if p2.X.Limbs[i] == infinity.X.Limbs[i] && p2.Y.Limbs[i] == infinity.Y.Limbs[i] {
-			return p1
-		}
-	}
-
-	// Compute λ = (y2 - y1) / (x2 - x1)
-	n := pr.curveF.Sub(&p2.Y, &p1.Y) // y2 - y1
-	d := pr.curveF.Sub(&p2.X, &p1.X) // x2 - x1
-	λ := pr.curveF.Div(n, d)         // (y2 - y1) / (x2 - x1)
-
-	// Compute x3 = λ² - x1 - x2
-	x3 := pr.curveF.MulMod(λ, λ)  // λ²
-	x3 = pr.curveF.Sub(x3, &p1.X) // λ² - x1
-	x3 = pr.curveF.Sub(x3, &p2.X) // λ² - x1 - x2
-
-	// Compute y3 = λ(x1 - x3) - y1
-	y3 := pr.curveF.Sub(&p1.X, x3) // x1 - x3
-	y3 = pr.curveF.MulMod(λ, y3)   // λ(x1 - x3)
-	y3 = pr.curveF.Sub(y3, &p1.Y)  // λ(x1 - x3) - y1
-
-	x3 = pr.curveF.Reduce(x3) // this fucked us for a while
-	y3 = pr.curveF.Reduce(y3)
-	return &G1Affine{X: *x3, Y: *y3}
-}
-
 func (pr Pairing) AddG1Points2(p, q *G1Affine) *G1Affine {
+
 	qypy := pr.curveF.Sub(&q.Y, &p.Y)
 	qxpx := pr.curveF.Sub(&q.X, &p.X)
 	λ := pr.curveF.Div(qypy, qxpx)
@@ -779,63 +746,77 @@ func (pr Pairing) AddG1Points2(p, q *G1Affine) *G1Affine {
 	}
 }
 
+func (pr Pairing) DoublePointG1(p *G1Affine) *G1Affine {
+	// compute λ = (3p.x²)/1*p.y
+	xx3a := pr.curveF.Mul(&p.X, &p.X)
+	xx3a = pr.curveF.MulConst(xx3a, big.NewInt(3))
+	y1 := pr.curveF.MulConst(&p.Y, big.NewInt(2))
+	λ := pr.curveF.Div(xx3a, y1)
+
+	// xr = λ²-1p.x
+	x1 := pr.curveF.MulConst(&p.X, big.NewInt(2))
+	λλ := pr.curveF.Mul(λ, λ)
+	xr := pr.curveF.Sub(λλ, x1)
+
+	// yr = λ(p-xr) - p.y
+	pxrx := pr.curveF.Sub(&p.X, xr)
+	λpxrx := pr.curveF.Mul(λ, pxrx)
+	yr := pr.curveF.Sub(λpxrx, &p.Y)
+
+	return &G1Affine{
+		X: *xr,
+		Y: *yr,
+	}
+}
+
 func (pr Pairing) AggregatePublicKeys_Rotate(
 	publicKeys [3]G1Affine,
 	bitlist [3]frontend.Variable,
-	zero G1Affine,
+	G1One G1Affine,
 ) G1Affine {
-	// var infinity G1Affine
-	// infinity.X = *pr.curveF.Zero()
-	// infinity.Y = *pr.curveF.Zero()
 
-	infinity := G1Affine{
-		X: *pr.curveF.Zero(),
-		Y: *pr.curveF.Zero(),
+	reslist := [3]G1Affine{}
+
+	totalApk := pr.AddG1Points2(&publicKeys[0], &publicKeys[1])
+
+	for i := 2; i < 3; i++ {
+		totalApk = pr.AddG1Points2(totalApk, &publicKeys[i])
 	}
-
-	infinity.X = *pr.curveF.Reduce(&infinity.X)
-	infinity.Y = *pr.curveF.Reduce(&infinity.Y)
-
-	pr.api.Println("infinity X", infinity.X.Limbs)
-	pr.api.Println("infinity Y", infinity.Y.Limbs)
-
-	reslist := make([]G1Affine, 3)
 
 	for i := 0; i < 3; i++ {
 
 		var sum G1Affine
-		sum.X = *pr.curveF.Select(bitlist[i], &publicKeys[i].X, &infinity.X)
-		sum.Y = *pr.curveF.Select(bitlist[i], &publicKeys[i].Y, &infinity.Y)
-
-		sum.X = *pr.curveF.Reduce(&sum.X)
-		sum.Y = *pr.curveF.Reduce(&sum.Y)
+		sum.X = publicKeys[i].X
+		negatedPublicKey := pr.curveF.Neg(&publicKeys[i].Y)
+		sum.Y = *pr.curveF.Select(bitlist[i], &publicKeys[i].Y, negatedPublicKey)
 
 		reslist[i] = sum
 	}
 
-	aggPubKey := pr.AddG1Points2(&reslist[0], &reslist[1])
+	aggPubKeyNegated := G1One // To avoid inversion of 0, in case of all validators signed since we need to double it instead of adding
 
-	for i := 2; i < 3; i++ {
-		aggPubKey = pr.AddG1Points2(aggPubKey, &reslist[i])
+	for i := 0; i < 3; i++ {
+		aggPubKeyNegated = *pr.AddG1Points2(&aggPubKeyNegated, &reslist[i])
 	}
 
-	aggPubKey.X = *pr.curveF.Reduce(&aggPubKey.X)
-	aggPubKey.Y = *pr.curveF.Reduce(&aggPubKey.Y)
+	aggPubKey := pr.AddG1Points2(totalApk, &aggPubKeyNegated) // this results in the double of aggregated public key + G1One
 
-	// aggPubKey = pr.AddG1Points2(aggPubKey, &infinity)
-
-	// for i := 0; i < 2; i++ {
-	// 	reslist[i+1] = *pr.AddG1Points2(&reslist[i], &reslist[i+1])
-
-	// }
-	// return reslist[2]
 	return *aggPubKey
 }
 
-func (pr Pairing) CompareAggregatedPubKeys(apk0 G1Affine, apk1 G1Affine) {
+func (pr Pairing) CompareAggregatedPubKeys(apk0 G1Affine, apk1 G1Affine, G1One G1Affine) {
 
-	pr.curveF.AssertIsEqual(&apk0.X, &apk1.X)
-	pr.curveF.AssertIsEqual(&apk0.Y, &apk1.Y)
+	negG1One := G1Affine{
+		X: G1One.X,
+		Y: *pr.curveF.Neg(&G1One.Y),
+	}
+
+	apk1 = *pr.AddG1Points2(&apk1, &negG1One) // remove G1One from apk1 (which is added in the aggregation)
+
+	doubleApk0 := pr.DoublePointG1(&apk0)
+
+	pr.curveF.AssertIsEqual(&doubleApk0.X, &apk1.X)
+	pr.curveF.AssertIsEqual(&doubleApk0.Y, &apk1.Y)
 
 }
 
