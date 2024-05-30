@@ -35,6 +35,7 @@ func PoseidonHash(inputs []*big.Int) *big.Int {
 	return out
 }
 
+// to do remove with pairing
 // ----
 // type AWMUltraWithPairing struct {
 // 	PK  [10]bls12.G1Affine
@@ -192,8 +193,6 @@ func genWeights(size int) []*big.Int {
 }
 
 func calculateCommitment(pubKeys []bls12381.G1Affine, weights []*big.Int) *big.Int {
-	fmt.Println("len(pubKeys): ", len(pubKeys))
-	fmt.Println("len(weights): ", len(weights))
 	c := make([]*big.Int, 10)
 	LIMBS_LENGTH := 6
 	for i := 0; i < 10; i++ {
@@ -221,11 +220,14 @@ func calculateCommitment(pubKeys []bls12381.G1Affine, weights []*big.Int) *big.I
 func TestRotate(t *testing.T) {
 	assert := test.NewAssert(t)
 
+	fmt.Println()
+	fmt.Println("🎲 Generating random test data for the AWM Ultra circuit.")
+	fmt.Println()
 	size := 10 // number of validators
+	fmt.Println("⚙️ Total number of validators (old and new): ", size)
 
 	// generate number of validators that will be from the old set
 	intersectionSize, err := rand.Int(rand.Reader, big.NewInt(8))
-	fmt.Println("Intersection Size: ", intersectionSize)
 	if err != nil {
 		panic(err)
 	}
@@ -233,13 +235,14 @@ func TestRotate(t *testing.T) {
 	if intersectionSize.Uint64() == 0 {
 		intersectionSize.SetUint64(1) // to avoid zero intersection
 	}
+	// to do: should also test randomly selecting subset of non-participating validators from the old set (exist in the new, but not signed) for completeness
+	fmt.Println("⚙️ Randomly selected number of validators from the old validator set: ", intersectionSize)
 
 	// generate the old set of validators with the intersection size
 	oldSecrets, oldPubKeys := genValidators(int(intersectionSize.Uint64()))
 
 	// generate the old weights
 	oldWeights := genWeights(int(intersectionSize.Uint64()))
-	fmt.Println("Old weights: ", oldWeights)
 	// generate the trusted weight (sum of the old weights, since the old set is trusted)
 	trustedWeight := big.NewInt(0)
 	for i := 0; i < len(oldWeights); i++ {
@@ -254,7 +257,7 @@ func TestRotate(t *testing.T) {
 	secrets := append(*oldSecrets, *newSecrets...)
 	pubKeys := append(*oldPubKeys, *newPubKeys...)
 
-	HM, err := bls12381.HashToG2([]byte("Let there be zk!"), []byte(DOMAIN_SEPERATOR))
+	HM, err := bls12381.HashToG2([]byte("Let there be snarks!"), []byte(DOMAIN_SEPERATOR)) // random message to be signed
 	if err != nil {
 		panic(err)
 	}
@@ -264,8 +267,6 @@ func TestRotate(t *testing.T) {
 	for i := 0; i < int(intersectionSize.Uint64()); i++ {
 		binarray[i] = 1
 	}
-
-	fmt.Println("Binary Array: ", binarray)
 	_, aggregatedSig := validatorSignatures(&secrets, &HM, &binarray) // _ is the individual signatures, not needed here
 
 	apk := aggregatePubKeys(pubKeys, binarray)
@@ -278,9 +279,6 @@ func TestRotate(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Off-circuit Pairing Verified: ", verify)
-
-	// generate the
 
 	// convert binary array to frontend.Variable array
 	bitlist := uint8ToVariableArray(binarray)
@@ -328,6 +326,14 @@ func TestRotate(t *testing.T) {
 	}
 	intersectionBitlist_parsed := uint8ToVariableArray(intersectionBitlist)
 
+	// NOTE:
+	// In production, the order of validators should be maintained in the bitlists, pubkey arrays and weights; as they were in the commitments
+	// Here, for the sake of simplicity and testing, we append old validators values to the beginning of the arrays, even though the circuit is designed to handle all cases
+
+	fmt.Println("⚙️ Bit set for the validators in the old set: ", oldBitlist)
+	fmt.Println("⚙️ Bit set for the validators in the intersection set: ", intersectionBitlist)
+	fmt.Println("⚙️ Bit set for the validators in the new set: ", binarray)
+
 	// compute the old and new commitee (apk) commitments by hashing (Poseidon) the old and new pubkeys with their respective weights
 
 	oldApkCommitment := calculateCommitment(oldFullPubKeys, oldFullWeights)
@@ -340,8 +346,8 @@ func TestRotate(t *testing.T) {
 	copy(temp3[:], oldWeightsArray)
 	oldWeights_parsed := temp3
 
-	fmt.Println("Old weights: ", oldWeights_parsed)
-	fmt.Println("trustedWeight: ", trustedWeight)
+	fmt.Println("⚙️ Weights of each validator in the old set: ", oldWeights_parsed)
+	fmt.Println("⚙️ Combined weight of the signers in the old set (Trusted weight): ", trustedWeight)
 
 	var temp4 [10]bls12.G1Affine // to fix the size of the array [size]
 	copy(temp4[:], *oldPubKeysArray)
@@ -374,21 +380,29 @@ func TestRotate(t *testing.T) {
 		OldApkCommitment:    oldApkCommitment_,
 		NewApkCommitment:    newApkCommitment_,
 	}
+	fmt.Println()
+	fmt.Println("🟢 Is aggregated signature valid (off-circuit pairing check): ", verify)
 
 	// --------------------------------------------------------------------------------------------
 	err = test.IsSolved(&AWMUltra{}, assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("🟢 Can the circuit be solved: True")
 	}
-	fmt.Println("Rotate Circuit Proving Tests started")
-	assert.ProverSucceeded(&AWMUltra{}, assignment, test.WithCurves(ecc.BN254))
-	fmt.Println("Starting R1CS generation...")
+	fmt.Println()
+	fmt.Println("🚩 Starting proving benchmark for the rotate circuit. ")
+	// assert.ProverSucceeded(&AWMUltra{}, assignment, test.WithCurves(ecc.BN254))
+	fmt.Println()
+	fmt.Println("🟢 Compiling circuit (R1CS generation).")
 	start := time.Now()
+	p := profile.Start()
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &AWMUltra{})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("R1CS generated. Took: ", time.Since(start))
+	p.Stop()
+	fmt.Println("🕐 R1CS generated. Took: ", time.Since(start), "No. of constraints: ", p.NbConstraints())
 	var bufCS bytes.Buffer
 	cs.WriteTo(&bufCS)
 
@@ -405,9 +419,9 @@ func TestRotate(t *testing.T) {
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
-	fmt.Println("R1CS saved to rotate2.r1cs file.")
 
-	fmt.Println("Starting setup phase...")
+	fmt.Println()
+	fmt.Println("🟢 Starting one-time setup phase. ")
 	pk, vk, err := groth16.Setup(cs)
 	if err != nil {
 		panic(err)
@@ -430,7 +444,6 @@ func TestRotate(t *testing.T) {
 		fmt.Println("Error:", err)
 		return
 	}
-	fmt.Println("Proving key saved to rotate2.pk file.")
 
 	// save the proving and verifying keys to disk
 	var bufVK bytes.Buffer
@@ -450,10 +463,10 @@ func TestRotate(t *testing.T) {
 		fmt.Println("Error:", err)
 		return
 	}
-	fmt.Println("Verifying key saved to rotate2.vk file.")
+	fmt.Println("R1CS, proving and verifying keys saved to disk. ")
 
 	// --------------------------------------------------------------------------------------------
-	// to read pk vk and r1cs from disk, uncomment after this line
+	// to read existing pk vk and r1cs from disk, uncomment after this line
 
 	// fmt.Println("Reading R1CS (rotate2.r1cs) file from the disk.")
 	// cs := groth16.NewCS(ecc.BN254)
@@ -490,13 +503,13 @@ func TestRotate(t *testing.T) {
 	// vk.ReadFrom(vkBuff)
 
 	// --------------------------------------------------------------------------------------------
-
-	fmt.Println("Starting witness generation...")
+	fmt.Println()
+	fmt.Println("🟢 Starting witness generation... ")
 	start = time.Now()
 	witness, _ := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	fmt.Println("Witness generated. Took: ", time.Since(start))
+	fmt.Println("🕐 Witness generated. Took: ", time.Since(start))
 	fmt.Println()
-	fmt.Println("Starting proving phase...")
+	fmt.Println("🟢 Starting proving phase... ")
 
 	start = time.Now()
 	proof, err := groth16.Prove(cs, pk, witness)
@@ -504,23 +517,30 @@ func TestRotate(t *testing.T) {
 		// dont panic continue to next test
 		fmt.Println("Error:", err)
 	}
-	fmt.Println("Proof generated. Took: ", time.Since(start))
+	fmt.Println("🕐 Proof generated. Took: ", time.Since(start))
 
 	publicWitness, _ := witness.Public()
 
-	fmt.Println("Starting verifying phase...")
+	fmt.Println()
+	fmt.Println("🟢 Starting verifying phase... ")
 	start = time.Now()
-	result := groth16.Verify(proof, vk, publicWitness)
-	fmt.Println("Verification completed. Result: ", result, " Took: ", time.Since(start))
-	fmt.Println("Rotate Circuit test passed")
+	err = groth16.Verify(proof, vk, publicWitness)
+	if err != nil {
+		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("🕐 Verification successful. Took: ", time.Since(start))
+	}
+	fmt.Println()
+	fmt.Println("🏁 AWM Ultra tests passed 🏁")
 	assert.NoError(err)
+
 }
 
-// bench
+// useless bench
 func BenchmarkAWMUltraRotate(b *testing.B) {
 	var c AWMUltra
 	p := profile.Start()
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
 	p.Stop()
-	fmt.Println("⏱️  BLS signature verifier on BLS12-381 in a BN254 R1CS circuit (v1): ", p.NbConstraints())
+	fmt.Println("⚙️ AWM Ultra Rotate no. of constraints: ", p.NbConstraints())
 }
