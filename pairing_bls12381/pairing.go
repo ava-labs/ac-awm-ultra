@@ -15,6 +15,8 @@ type Pairing struct {
 	api frontend.API
 	*Ext12
 	curveF *emulated.Field[emulated.BLS12381Fp]
+	status frontend.Variable
+	data   []frontend.Variable
 }
 
 type GTEl = E12
@@ -770,20 +772,20 @@ func (pr Pairing) DoublePointG1(p *G1Affine) *G1Affine {
 }
 
 func (pr Pairing) AggregatePublicKeys_Rotate(
-	publicKeys [3]G1Affine,
-	bitlist [3]frontend.Variable,
+	publicKeys [10]G1Affine,
+	bitlist [10]frontend.Variable,
 	G1One G1Affine,
 ) G1Affine {
 
-	reslist := [3]G1Affine{}
+	reslist := [10]G1Affine{}
 
 	totalApk := pr.AddG1Points2(&publicKeys[0], &publicKeys[1])
 
-	for i := 2; i < 3; i++ {
+	for i := 2; i < 10; i++ {
 		totalApk = pr.AddG1Points2(totalApk, &publicKeys[i])
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 
 		var sum G1Affine
 		sum.X = publicKeys[i].X
@@ -795,7 +797,7 @@ func (pr Pairing) AggregatePublicKeys_Rotate(
 
 	aggPubKeyNegated := G1One // To avoid inversion of 0, in case of all validators signed since we need to double it instead of adding
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		aggPubKeyNegated = *pr.AddG1Points2(&aggPubKeyNegated, &reslist[i])
 	}
 
@@ -820,58 +822,88 @@ func (pr Pairing) CompareAggregatedPubKeys(apk0 G1Affine, apk1 G1Affine, G1One G
 
 }
 
-func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [3]G1Affine, BitList_new, oldWeights [3]frontend.Variable) frontend.Variable {
+func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [10]G1Affine, BitList_new, oldWeights [10]frontend.Variable, oldBitlist [10]frontend.Variable, intersectionBitlist [10]frontend.Variable) frontend.Variable {
 	oldSingedweight := frontend.Variable(0)
 
 	var zero G1Affine
 	zero.X = *pr.curveF.Zero()
 	zero.Y = *pr.curveF.Zero()
 
-	signedPKsOfNewPubKeysX := [3][6]frontend.Variable{}
-	signedPKsOfNewPubKeysY := [3][6]frontend.Variable{}
+	signedPKsOfNewPubKeys := [10]G1Affine{}
 
 	// adds signed pubkeys to the list
-	for i := 0; i < 3; i++ {
-		for j := 0; j < 6; j++ {
-			findSignersX := pr.api.Select(BitList_new[i], pubKeys_new[i].X.Limbs[j], zero.X.Limbs[j])
-			findSignersY := pr.api.Select(BitList_new[i], pubKeys_new[i].Y.Limbs[j], zero.Y.Limbs[j])
+	for i := 0; i < 10; i++ {
+		findSignersX := pr.curveF.Select(BitList_new[i], &pubKeys_new[i].X, &zero.X)
+		findSignersY := pr.curveF.Select(BitList_new[i], &pubKeys_new[i].Y, &zero.Y)
 
-			signedPKsOfNewPubKeysX[i][j] = findSignersX
-			signedPKsOfNewPubKeysY[i][j] = findSignersY
+		signedPKsOfNewPubKeys[i] = G1Affine{
+			X: *findSignersX,
+			Y: *findSignersY,
 		}
 	}
 
-	// adds weights of old public keys if the corresponding public key is in the new and signed list
-	for i := 0; i < 3; i++ {
-		xysix := frontend.Variable(0)
-		for j := 0; j < 6; j++ {
-			comparePKsX := pr.api.Cmp(signedPKsOfNewPubKeysX[i][j], pubKeys_old[i].X.Limbs[j])
-			comparePKsY := pr.api.Cmp(signedPKsOfNewPubKeysY[i][j], pubKeys_old[i].Y.Limbs[j])
-			x := pr.api.Cmp(comparePKsX, frontend.Variable(0))
-			y := pr.api.Cmp(comparePKsY, frontend.Variable(0))
-			xy := pr.api.Or(x, y)
-			xysix = pr.api.Or(xysix, xy)
+	// finding the intersection of old commitee and signed new commitee
+	// step 1: extract signers from old committee using oldBitlist and sum their public keys and weights
+	// step 2: extract old commitee signers from new commitee using intersectionBitlist and sum their public keys
+	// step 3: compare the aggregated public keys of step 1 and step 2 and assert they are equal
+
+	// step 1
+	oldSignersFromOldCommittee := [10]G1Affine{}
+	for i := 0; i < 10; i++ {
+		findSignersX := pr.curveF.Select(oldBitlist[i], &pubKeys_old[i].X, &zero.X)
+		findSignersY := pr.curveF.Select(oldBitlist[i], &pubKeys_old[i].Y, &zero.Y)
+
+		findSignersWeight := pr.api.Select(oldBitlist[i], oldWeights[i], frontend.Variable(0))
+
+		oldSingedweight = pr.api.Add(oldSingedweight, findSignersWeight)
+
+		oldSignersFromOldCommittee[i] = G1Affine{
+			X: *findSignersX,
+			Y: *findSignersY,
 		}
-		weight := pr.api.Select(xysix, frontend.Variable(0), oldWeights[i])
-		oldSingedweight = pr.api.Add(oldSingedweight, weight)
 	}
+
+	// step 2
+	oldSignersFromNewCommittee := [10]G1Affine{}
+	for i := 0; i < 10; i++ {
+		findSignersX := pr.curveF.Select(intersectionBitlist[i], &pubKeys_new[i].X, &zero.X)
+		findSignersY := pr.curveF.Select(intersectionBitlist[i], &pubKeys_new[i].Y, &zero.Y)
+
+		oldSignersFromNewCommittee[i] = G1Affine{
+			X: *findSignersX,
+			Y: *findSignersY,
+		}
+	}
+
+	// aggregate public keys of old signers from old committee and old signers from new committee
+	aggOldSignersFromOldCommittee := pr.AddG1Points2(&oldSignersFromOldCommittee[0], &oldSignersFromOldCommittee[1])
+	aggOldSignersFromNewCommittee := pr.AddG1Points2(&oldSignersFromNewCommittee[0], &oldSignersFromNewCommittee[1])
+
+	for i := 2; i < 10; i++ {
+		aggOldSignersFromOldCommittee = pr.AddG1Points2(aggOldSignersFromOldCommittee, &oldSignersFromOldCommittee[i])
+		aggOldSignersFromNewCommittee = pr.AddG1Points2(aggOldSignersFromNewCommittee, &oldSignersFromNewCommittee[i])
+	}
+
+	// step 3: compare the aggregated public keys of old signers from old committee and old signers from new committee
+	pr.curveF.AssertIsEqual(&aggOldSignersFromOldCommittee.X, &aggOldSignersFromNewCommittee.X)
+	pr.curveF.AssertIsEqual(&aggOldSignersFromOldCommittee.Y, &aggOldSignersFromNewCommittee.Y)
 
 	return oldSingedweight
 }
 
 func (pr Pairing) ComputeAPKCommitment(
-	pubKeys [3]G1Affine,
-	quorumW [3]frontend.Variable,
+	pubKeys [10]G1Affine,
+	quorumW [10]frontend.Variable,
 ) frontend.Variable {
 	m := make([]frontend.Variable, 10)
 
-	for i := 0; i < 3; i++ {
-		commX := pr.MimcHash(pubKeys[i].X.Limbs)
-		commY := pr.MimcHash(pubKeys[i].Y.Limbs)
-		m[i] = pr.MimcHash([]frontend.Variable{commX, commY, quorumW[i]})
+	for i := 0; i < 10; i++ {
+		commX := pr.Poseidon(pubKeys[i].X.Limbs)
+		commY := pr.Poseidon(pubKeys[i].Y.Limbs)
+		m[i] = pr.Poseidon([]frontend.Variable{commX, commY, quorumW[i]})
 	}
 
-	return pr.MimcHash(m)
+	return pr.Poseidon(m)
 }
 
 func (pr Pairing) Check(a, b frontend.Variable) error {
