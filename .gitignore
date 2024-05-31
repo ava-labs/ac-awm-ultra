@@ -24,4 +24,4 @@ go.work.sum
 *.r1cs
 *.vk
 *.out
-*.proof
+*.pprof

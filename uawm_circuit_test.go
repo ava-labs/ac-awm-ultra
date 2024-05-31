@@ -467,6 +467,7 @@ func TestRotate(t *testing.T) {
 
 	// --------------------------------------------------------------------------------------------
 	// to read existing pk vk and r1cs from disk, uncomment after this line
+	// to do: clean up the code
 
 	// fmt.Println("Reading R1CS (rotate2.r1cs) file from the disk.")
 	// cs := groth16.NewCS(ecc.BN254)
