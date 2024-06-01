@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -130,19 +129,6 @@ func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [10]G1Affine, 
 	zero.X = *pr.curveF.Zero()
 	zero.Y = *pr.curveF.Zero()
 
-	signedPKsOfNewPubKeys := [10]G1Affine{}
-
-	// adds signed pubkeys to the list
-	for i := 0; i < 10; i++ {
-		findSignersX := pr.curveF.Select(BitList_new[i], &pubKeys_new[i].X, &zero.X)
-		findSignersY := pr.curveF.Select(BitList_new[i], &pubKeys_new[i].Y, &zero.Y)
-
-		signedPKsOfNewPubKeys[i] = G1Affine{
-			X: *findSignersX,
-			Y: *findSignersY,
-		}
-	}
-
 	// finding the intersection of old commitee and signed new commitee
 	// step 1: extract signers from old committee using oldBitlist and sum their public keys and weights
 	// step 2: extract old commitee signers from new commitee using intersectionBitlist and sum their public keys
@@ -210,13 +196,4 @@ func (pr Pairing) ComputeAPKCommitment(
 func (pr Pairing) Check(a, b frontend.Variable) error {
 	pr.api.AssertIsEqual(a, b)
 	return nil
-}
-
-func (pr Pairing) MimcHash(inputs []frontend.Variable) frontend.Variable {
-	mimc, _ := mimc.NewMiMC(pr.api)
-
-	mimc.Write(inputs)
-
-	return mimc.Sum()
-
 }

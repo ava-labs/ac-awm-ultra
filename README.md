@@ -41,11 +41,11 @@ Below are the benchmark results for the rotation circuit with 10 validators, tes
 
 |         Operation         |        Time      | 
 | :------------------------:| :--------------: | 
-|    Compile                |      273.272ms   |     
-|    Gen witness            |      214.958µs   | 
-|    Prove                  |      180.603ms   |    
-|    Verify                 |      1.577ms     |    
-|    No. of constraints     |      43906       |   
+|    Compile                |      268.499ms   |     
+|    Gen witness            |      185.75µs    | 
+|    Prove                  |      172.124ms   |    
+|    Verify                 |      1.571ms     |    
+|    No. of constraints     |      43786       |   
 
 
 
