@@ -27,7 +27,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-func (pr Pairing) AddG1Points2(p, q *G1Affine) *G1Affine {
+func (pr Pairing) AddG1Points(p, q *G1Affine) *G1Affine {
 
 	qypy := pr.curveF.Sub(&q.Y, &p.Y)
 	qxpx := pr.curveF.Sub(&q.X, &p.X)
@@ -80,10 +80,10 @@ func (pr Pairing) AggregatePublicKeys_Rotate(
 
 	reslist := [10]G1Affine{}
 
-	totalApk := pr.AddG1Points2(&publicKeys[0], &publicKeys[1])
+	totalApk := pr.AddG1Points(&publicKeys[0], &publicKeys[1])
 
 	for i := 2; i < 10; i++ {
-		totalApk = pr.AddG1Points2(totalApk, &publicKeys[i])
+		totalApk = pr.AddG1Points(totalApk, &publicKeys[i])
 	}
 
 	for i := 0; i < 10; i++ {
@@ -99,10 +99,10 @@ func (pr Pairing) AggregatePublicKeys_Rotate(
 	aggPubKeyNegated := G1One // To avoid inversion of 0, in case of all validators signed since we need to double it instead of adding
 
 	for i := 0; i < 10; i++ {
-		aggPubKeyNegated = *pr.AddG1Points2(&aggPubKeyNegated, &reslist[i])
+		aggPubKeyNegated = *pr.AddG1Points(&aggPubKeyNegated, &reslist[i])
 	}
 
-	aggPubKey := pr.AddG1Points2(totalApk, &aggPubKeyNegated) // this results in the double of aggregated public key + G1One
+	aggPubKey := pr.AddG1Points(totalApk, &aggPubKeyNegated) // this results in the double of aggregated public key + G1One
 
 	return *aggPubKey
 }
@@ -114,7 +114,7 @@ func (pr Pairing) CompareAggregatedPubKeys(apk0 G1Affine, apk1 G1Affine, G1One G
 		Y: *pr.curveF.Neg(&G1One.Y),
 	}
 
-	apk1 = *pr.AddG1Points2(&apk1, &negG1One) // remove G1One from apk1 (which is added in the aggregation)
+	apk1 = *pr.AddG1Points(&apk1, &negG1One) // remove G1One from apk1 (which is added in the aggregation)
 
 	doubleApk0 := pr.DoublePointG1(&apk0)
 
@@ -177,12 +177,12 @@ func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [10]G1Affine, 
 	}
 
 	// aggregate public keys of old signers from old committee and old signers from new committee
-	aggOldSignersFromOldCommittee := pr.AddG1Points2(&oldSignersFromOldCommittee[0], &oldSignersFromOldCommittee[1])
-	aggOldSignersFromNewCommittee := pr.AddG1Points2(&oldSignersFromNewCommittee[0], &oldSignersFromNewCommittee[1])
+	aggOldSignersFromOldCommittee := pr.AddG1Points(&oldSignersFromOldCommittee[0], &oldSignersFromOldCommittee[1])
+	aggOldSignersFromNewCommittee := pr.AddG1Points(&oldSignersFromNewCommittee[0], &oldSignersFromNewCommittee[1])
 
 	for i := 2; i < 10; i++ {
-		aggOldSignersFromOldCommittee = pr.AddG1Points2(aggOldSignersFromOldCommittee, &oldSignersFromOldCommittee[i])
-		aggOldSignersFromNewCommittee = pr.AddG1Points2(aggOldSignersFromNewCommittee, &oldSignersFromNewCommittee[i])
+		aggOldSignersFromOldCommittee = pr.AddG1Points(aggOldSignersFromOldCommittee, &oldSignersFromOldCommittee[i])
+		aggOldSignersFromNewCommittee = pr.AddG1Points(aggOldSignersFromNewCommittee, &oldSignersFromNewCommittee[i])
 	}
 
 	// step 3: compare the aggregated public keys of old signers from old committee and old signers from new committee
