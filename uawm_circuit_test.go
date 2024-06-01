@@ -35,28 +35,6 @@ func PoseidonHash(inputs []*big.Int) *big.Int {
 	return out
 }
 
-// to do remove with pairing
-// ----
-// type AWMUltraWithPairing struct {
-// 	PK  [10]bls12.G1Affine
-// 	Sig bls12.G2Affine
-// 	HM  bls12.G2Affine
-// 	BL  [10]frontend.Variable
-// 	APK bls12.G1Affine
-// }
-
-// func (c *AWMUltraWithPairing) Define(api frontend.API) error {
-// 	bls, err := NewBLS_bls12(api)
-// 	if err != nil {
-// 		return fmt.Errorf("new pairing: %w", err)
-
-// 	}
-
-// 	bls.AWMUltraWithPairing(&c.PK, &c.Sig, &c.HM, &c.BL, &c.APK)
-// 	return nil
-
-// }
-
 type AWMUltra struct {
 	PK                  [10]bls12.G1Affine
 	BL                  [10]frontend.Variable
