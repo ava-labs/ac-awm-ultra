@@ -122,7 +122,8 @@ func (pr Pairing) CompareAggregatedPubKeys(apk0 G1Affine, apk1 G1Affine, G1One G
 
 }
 
-func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [10]G1Affine, BitList_new, oldWeights [10]frontend.Variable, oldBitlist [10]frontend.Variable, intersectionBitlist [10]frontend.Variable) frontend.Variable {
+func (pr Pairing) CalculateTrustedWeight(pubKeys_old, pubKeys_new [10]G1Affine, BitList_new, oldWeights [10]frontend.Variable, oldBitlist [10]frontend.Variable,
+	intersectionBitlist [10]frontend.Variable) frontend.Variable {
 	oldSingedweight := frontend.Variable(0)
 
 	var zero G1Affine

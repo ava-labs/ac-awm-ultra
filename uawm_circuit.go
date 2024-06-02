@@ -33,7 +33,7 @@ func (bls BLS_bls12) AWMUltra(pubKeys *[10]bls12.G1Affine, bitlist *[10]frontend
 	}
 
 	trustedWeight_ := bls.pr.CalculateTrustedWeight(*oldPubKeys, *pubKeys, *bitlist, *oldWeights, *oldBitlist, *intersectionBitlist)
-	// trustedWeight_ = trustedWeight_
+
 	bls.pr.Check(*trustedWeight, trustedWeight_)
 
 	apkCommitment := bls.pr.ComputeAPKCommitment(*oldPubKeys, *oldWeights)
