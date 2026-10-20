@@ -1,6 +1,7 @@
 module github.com/etrapay/awm-ultra
 
 go 1.22.2
+toolchain go1.26.10
 
 require (
 	github.com/consensys/gnark v0.10.0
